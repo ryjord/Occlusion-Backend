@@ -1,13 +1,61 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// 1. TECHNICIAN (Matches DB-FR4 & DB-FR14)
+model Technician {
+  id                   String   @id @default(uuid())
+  employeeId           String   @unique
+  fullName             String
+  role                 String   // "Admin" or "Technician"
+  passwordHash         String   // Storing Argon2 hash
+  registeredHardwareId String   // Device binding for security
+  createdAt            DateTime @default(now())
+
+  auditLogs   AuditTrail[]
+}
+
+// 2. FAULT_LOG (Matches UX-FR5 & Spatial Requirements)
+model FaultLog {
+  id              String   @id @default(uuid())
+  markerId        String   // AR Anchor Reference
+  status          String   @default("Open") // Open, In Progress, Resolved
+  severity        String   @default("Warning") // Critical, Warning, Checked
+  annotationNotes String?  @db.Text
+  spatialX        Float    // 3D Coordinate
+  spatialY        Float    // 3D Coordinate
+  spatialZ        Float    // 3D Coordinate
+  createdAt       DateTime @default(now())
+  resolvedAt      DateTime?
+}
+
+// 3. TOOL (Matches DB-FR16)
+model Tool {
+  id              String   @id @default(uuid())
+  toolName        String
+  category        String
+  lastKnownX      Float    // Telemetry Data
+  lastKnownY      Float
+  lastKnownZ      Float
+  lastTrackedAt   DateTime @updatedAt
+}
+
+// 4. AUDIT_TRAIL (Matches DB-FR5 & DB-NFR9)
+model AuditTrail {
+  id               String   @id @default(uuid())
+  targetTable      String
+  targetRecordId   String
+  actionType       String   // "INSERT", "UPDATE", "DELETE"
+  actionTimestamp  DateTime @default(now())
+
+  // PostgreSQL specific JSONB for storing the exact data changes
+  previousState    Json?
+  newState         Json?
+
+  changedById      String
+  changedBy        Technician @relation(fields: [changedById], references: [id])
 }
