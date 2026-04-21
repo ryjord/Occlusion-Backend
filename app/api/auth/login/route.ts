@@ -1,16 +1,18 @@
 // Libs
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+
 // Services
 import { AuthService } from '@/services/auth.service';
 
-// Zod Schema for strict input validation (DB-FR9)
+// Zod Schema for strict input validation
 const loginSchema = z.object({
   employeeId: z.string().min(1, 'Employee ID is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   hardwareId: z.string().min(1, 'Hardware ID telemetry is required')
 });
 
+// Login API Endpoint
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -52,7 +54,7 @@ export async function POST(request: Request) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 60 * 60 * 12, // 12 hours
+      maxAge: 60 * 60 * 12,
       path: '/',
     });
 
