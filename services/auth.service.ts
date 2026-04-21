@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma';
 // Interfaces
 import { Technician } from '@prisma/client';
 
+// Authentication Service
 export class AuthService {
   static async authenticateUser(employeeId: string, passwordPlain: string, hardwareId: string): Promise<Technician | null> {
     try {
@@ -19,7 +20,7 @@ export class AuthService {
         return null;
       }
 
-      // Hardware ID Security Check (DB-FR14)
+      // Hardware ID Security Check
       if (user.registeredHardwareId !== hardwareId) {
         throw new Error('Hardware ID mismatch. Unauthorized device.');
       }
@@ -38,6 +39,7 @@ export class AuthService {
     }
   }
 
+  // Generate JWT token
   static generateToken(user: Technician): string {
     const payload = {
       sub: user.id,
@@ -45,7 +47,7 @@ export class AuthService {
       employeeId: user.employeeId
     };
 
-    // Ensure JWT_SECRET exists
+    // check JWT_SECRET exists
     const secret = process.env.JWT_SECRET;
     if (!secret) {
       throw new Error('JWT_SECRET is not defined in environment variables.');

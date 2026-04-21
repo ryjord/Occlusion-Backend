@@ -6,7 +6,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// 1. TECHNICIAN (Matches DB-FR4 & DB-FR14)
+// TECHNICIAN
 model Technician {
   id                   String   @id @default(uuid())
   employeeId           String   @unique
@@ -19,7 +19,7 @@ model Technician {
   auditLogs   AuditTrail[]
 }
 
-// 2. FAULT_LOG (Matches UX-FR5 & Spatial Requirements)
+// FAULT_LOG
 model FaultLog {
   id              String   @id @default(uuid())
   markerId        String   // AR Anchor Reference
@@ -33,7 +33,7 @@ model FaultLog {
   resolvedAt      DateTime?
 }
 
-// 3. TOOL (Matches DB-FR16)
+// TOOL
 model Tool {
   id              String   @id @default(uuid())
   toolName        String
@@ -44,7 +44,7 @@ model Tool {
   lastTrackedAt   DateTime @updatedAt
 }
 
-// 4. AUDIT_TRAIL (Matches DB-FR5 & DB-NFR9)
+// AUDIT_TRAIL
 model AuditTrail {
   id               String   @id @default(uuid())
   targetTable      String
