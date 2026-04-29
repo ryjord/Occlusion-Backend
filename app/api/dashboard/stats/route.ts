@@ -20,7 +20,31 @@ export async function GET() {
     const resolvedFaults = await prisma.faultLog.count({ where: { status: 'Resolved' } });
     const activeTools = await prisma.tool.count();
 
-    // Return data securely to the frontend
+    // Fetch the 10 most recent audit logs and include the technician data
+    const recentActivity = await prisma.auditTrail.findMany({
+      take: 10,
+      orderBy: {
+        actionTimestamp: 'desc'
+      },
+      include: {
+        changedBy: {
+          select: {
+            fullName: true,
+            role: true
+          }
+        }
+      }
+    });
+
+    // Map the database response to exactly what the frontend Zustand store expects
+    const formattedActivity = recentActivity.map((log) => ({
+      id: log.id,
+      actionType: log.actionType,
+      timestamp: log.actionTimestamp,
+      newState: log.newState,
+      changedBy: log.changedBy
+    }));
+
     return NextResponse.json({
       success: true,
       data: {
@@ -29,10 +53,12 @@ export async function GET() {
         resolvedFaults,
         activeTools,
         // Mock MTTR (Mean Time To Repair) for the TRL 3 prototype demonstration REPLACE LATER IF WE NEED
-        mttrHours: 4.2
+        mttrHours: 4.2,
+        recentActivity: formattedActivity
       }
     });
-  } catch (error) {
-    return NextResponse.json({ success: false, error: "Failed to fetch stats" }, { status: 500 });
+  } catch(error) {
+    console.error('Stats Error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to fetch stats' }, { status: 500 });
   }
 }
