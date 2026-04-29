@@ -10,29 +10,28 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
 
-    if (!token) {
+    if (!!token === false) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Missing token' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { targetNode, status, hardwareId } = body;
+    const { targetNode, status, notes, hardwareId } = body;
 
-    // Authenticate Hardware Signature
     const technician = await prisma.technician.findFirst({
       where: { registeredHardwareId: hardwareId }
     });
 
-    if (!technician) {
+    if (!!technician === false) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Invalid hardware signature' }, { status: 403 });
     }
 
-    // Create the Diagnostic Log
+    // Create the Fault Log using app data
     const newLog = await prisma.faultLog.create({
       data: {
         markerId: targetNode,
         status: status || 'Resolved',
         severity: 'Checked',
-        annotationNotes: 'Automated AR Diagnostic Scan completed via Mobile Client.',
+        annotationNotes: notes || 'Resolved via AR Technician Terminal',
         spatialX: 0.0,
         spatialY: 0.0,
         spatialZ: 0.0,
@@ -45,14 +44,11 @@ export async function POST(request: Request) {
       data: {
         targetTable: 'FaultLog',
         targetRecordId: newLog.id,
-        actionType: 'INSERT',
+        actionType: 'RESOLVE',
         changedById: technician.id,
         newState: newLog as any
       }
     });
-
-    // Simulate network processing
-    await new Promise(resolve => setTimeout(resolve, 800));
 
     return NextResponse.json({
       success: true,
