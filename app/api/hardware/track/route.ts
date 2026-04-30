@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { targetNode, status, notes, hardwareId } = body;
+    const { toolId, toolName, hardwareId } = body;
 
     const technician = await prisma.technician.findFirst({
       where: { registeredHardwareId: hardwareId }
@@ -25,53 +25,53 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Invalid hardware signature' }, { status: 403 });
     }
 
-    // Create the Fault Log using app data
-    let fault = await prisma.faultLog.findFirst({
-      where: { markerId: targetNode }
+    // Find existing tool
+    let tool = await prisma.tool.findFirst({
+      where: { toolName: toolName }
     });
 
-    if (!!fault) {
-      fault = await prisma.faultLog.update({
-        where: { id: fault.id },
+    if (!!tool) {
+      // Update timestamp & movement
+      tool = await prisma.tool.update({
+        where: { id: tool.id },
         data: {
-          status: status || 'Resolved',
-          annotationNotes: notes,
-          resolvedAt: new Date()
+          lastTrackedAt: new Date(),
+          lastKnownX: tool.lastKnownX + 0.5,
+          lastKnownY: tool.lastKnownY + 0.2
         }
       });
     } else {
-      fault = await prisma.faultLog.create({
+      // Register a brand new tool
+      tool = await prisma.tool.create({
         data: {
-          markerId: targetNode,
-          status: status || 'Resolved',
-          severity: 'Critical',
-          annotationNotes: notes,
-          spatialX: 0.0,
-          spatialY: 0.0,
-          spatialZ: 0.0,
-          resolvedAt: new Date()
+          toolName: toolName || toolId,
+          category: 'Diagnostic Equipment',
+          lastKnownX: 10.0,
+          lastKnownY: 5.0,
+          lastKnownZ: 1.5,
+          lastTrackedAt: new Date()
         }
       });
     }
 
-    // Generate the Audit Trail
+    // Generate an Audit Trail
     await prisma.auditTrail.create({
       data: {
-        targetTable: 'FaultLog',
-        targetRecordId: fault.id,
-        actionType: 'RESOLVE',
+        targetTable: 'Tool',
+        targetRecordId: tool.id,
+        actionType: 'CHECKOUT',
         changedById: technician.id,
-        newState: fault as any
+        newState: tool as any
       }
     });
 
     return NextResponse.json({
       success: true,
-      message: 'Diagnostic synchronized with mainframe.'
+      message: 'Tool telemetry updated.'
     });
 
   } catch(error) {
-    console.error('Diagnostic Error:', error);
+    console.error('Tracking Error:', error);
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
