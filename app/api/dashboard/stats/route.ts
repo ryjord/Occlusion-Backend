@@ -20,6 +20,25 @@ export async function GET() {
     const resolvedFaults = await prisma.faultLog.count({ where: { status: 'Resolved' } });
     const activeTools = await prisma.tool.count();
 
+    const resolvedLogs = await prisma.faultLog.findMany({
+      where: {
+        status: 'Resolved',
+        resolvedAt: { not: null }
+      },
+      select: { createdAt: true, resolvedAt: true }
+    });
+
+    let mttrHours = 0;
+    if (resolvedLogs.length > 0) {
+      const totalRepairTimeMs = resolvedLogs.reduce((total, log) => {
+        const repairTime = log.resolvedAt!.getTime() - log.createdAt.getTime();
+        return total + repairTime;
+      }, 0);
+
+      const averageMs = totalRepairTimeMs / resolvedLogs.length;
+      mttrHours = Number((averageMs / (1000 * 60 * 60)).toFixed(2));
+    }
+
     // Fetch the 10 most recent audit logs and include the technician data
     const recentActivity = await prisma.auditTrail.findMany({
       take: 10,
@@ -52,8 +71,7 @@ export async function GET() {
         openFaults,
         resolvedFaults,
         activeTools,
-        // Mock MTTR (Mean Time To Repair) for the TRL 3 prototype demonstration REPLACE LATER IF WE NEED
-        mttrHours: 4.2,
+        mttrHours,
         recentActivity: formattedActivity
       }
     });
