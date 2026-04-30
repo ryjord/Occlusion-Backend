@@ -9,13 +9,6 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('auth_token')?.value;
-
-    if (!!token === false) {
-      return NextResponse.json({ success: false, error: 'Unauthorized: Missing token' }, { status: 401 });
-    }
-
     const body = await request.json();
     const { targetNode, status, notes, hardwareId } = body;
 
