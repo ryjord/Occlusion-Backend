@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic';
 
 // Libs
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 
 // Services
 import { prisma } from '@/lib/prisma';
@@ -22,7 +21,7 @@ export async function POST(request: Request) {
 
     // Find existing tool
     let tool = await prisma.tool.findFirst({
-      where: { toolName: toolName }
+      where: { toolName: toolName || toolId }
     });
 
     if (!!tool) {
@@ -30,9 +29,7 @@ export async function POST(request: Request) {
       tool = await prisma.tool.update({
         where: { id: tool.id },
         data: {
-          lastTrackedAt: new Date(),
-          lastKnownX: tool.lastKnownX + 0.5,
-          lastKnownY: tool.lastKnownY + 0.2
+          lastTrackedAt: new Date()
         }
       });
     } else {
@@ -41,9 +38,9 @@ export async function POST(request: Request) {
         data: {
           toolName: toolName || toolId,
           category: 'Diagnostic Equipment',
-          lastKnownX: 10.0,
-          lastKnownY: 5.0,
-          lastKnownZ: 1.5,
+          lastKnownX: 0.0,
+          lastKnownY: 0.0,
+          lastKnownZ: 0.0,
           lastTrackedAt: new Date()
         }
       });
@@ -60,10 +57,7 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json({
-      success: true,
-      message: 'Tool telemetry updated.'
-    });
+    return NextResponse.json({ success: true });
 
   } catch(error) {
     console.error('Tracking Error:', error);
