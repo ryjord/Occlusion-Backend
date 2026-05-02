@@ -2,62 +2,57 @@ export const dynamic = 'force-dynamic';
 
 // Libs
 import { NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
+import { prisma } from '@/lib/prisma';
 
-// Database Connection
-const connectionString = `${process.env.DATABASE_URL}`;
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-
-const prisma = new PrismaClient({ adapter });
-
-// Dashboard Stats API Endpoint
 export async function GET() {
   try {
-    // Fetch aggregate data from the database
     const totalFaults = await prisma.faultLog.count();
     const openFaults = await prisma.faultLog.count({ where: { status: 'Open' } });
     const resolvedFaults = await prisma.faultLog.count({ where: { status: 'Resolved' } });
     const activeTools = await prisma.tool.count();
 
+    // Fetch all resolved faults
     const resolvedLogs = await prisma.faultLog.findMany({
-      where: {
-        status: 'Resolved',
-        resolvedAt: { not: null }
-      },
+      where: { status: 'Resolved', resolvedAt: { not: null } },
       select: { createdAt: true, resolvedAt: true }
     });
 
+    // Calculate MTTR (Overall and Last 7 Days)
     let mttrHours = 0;
+    let mttrTrend = 'STABLE';
+
     if (resolvedLogs.length > 0) {
       const totalRepairTimeMs = resolvedLogs.reduce((total, log) => {
-        const repairTime = log.resolvedAt!.getTime() - log.createdAt.getTime();
-        return total + repairTime;
+        return total + (log.resolvedAt!.getTime() - log.createdAt.getTime());
       }, 0);
 
       const averageMs = totalRepairTimeMs / resolvedLogs.length;
       mttrHours = Number((averageMs / (1000 * 60 * 60)).toFixed(2));
+
+      // Trend Calculation (Last 7 Days vs Overall)
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+      const recentLogs = resolvedLogs.filter(log => log.resolvedAt! >= oneWeekAgo);
+      if (recentLogs.length > 0) {
+        const recentRepairTimeMs = recentLogs.reduce((total, log) => {
+          return total + (log.resolvedAt!.getTime() - log.createdAt.getTime());
+        }, 0);
+        const recentMttrHours = Number(((recentRepairTimeMs / recentLogs.length) / (1000 * 60 * 60)).toFixed(2));
+
+        if (recentMttrHours < mttrHours) mttrTrend = 'IMPROVING';
+        else if (recentMttrHours > mttrHours) mttrTrend = 'DEGRADING';
+      }
     }
 
-    // Fetch the 10 most recent audit logs and include the technician data
+    // Fetch the 10 most recent audit logs
     const recentActivity = await prisma.auditTrail.findMany({
       take: 10,
-      orderBy: {
-        actionTimestamp: 'desc'
-      },
-      include: {
-        changedBy: {
-          select: {
-            fullName: true,
-            role: true
-          }
-        }
-      }
+      orderBy: { actionTimestamp: 'desc' },
+      include: { changedBy: { select: { fullName: true, role: true } } }
     });
 
-    // Map the database response to exactly what the frontend Zustand store expects
+    // Map the database response to frontend Zustand store format
     const formattedActivity = recentActivity.map((log) => ({
       id: log.id,
       actionType: log.actionType,
@@ -74,6 +69,7 @@ export async function GET() {
         resolvedFaults,
         activeTools,
         mttrHours,
+        mttrTrend,
         recentActivity: formattedActivity
       }
     });
