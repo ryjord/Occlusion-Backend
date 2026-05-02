@@ -1,10 +1,23 @@
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Require an active web session
+    const cookieStore = await cookies();
+    const token = cookieStore.get('auth_token')?.value;
+
+    if (!token) {
+      return new NextResponse('Unauthorized: Active terminal session required for data export.', {
+        status: 401,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    }
+
+    // Fetch the Data (Only reached if authenticated)
     const logs = await prisma.auditTrail.findMany({
       include: { changedBy: { select: { fullName: true } } },
       orderBy: { actionTimestamp: 'desc' }
@@ -30,6 +43,6 @@ export async function GET() {
 
   } catch (error) {
     console.error('CSV Export Error:', error);
-    return NextResponse.json({ success: false, error: 'Export failed' }, { status: 500 });
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
