@@ -16,45 +16,43 @@ export async function POST(request: Request) {
     });
 
     if (!!technician === false) {
-      return NextResponse.json({ success: false, error: 'Unauthorized: Invalid hardware signature' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Find existing tool
-    let tool = await prisma.tool.findFirst({
-      where: { toolName: toolName || toolId }
-    });
-
-    if (!!tool) {
-      // Update timestamp & movement
-      tool = await prisma.tool.update({
-        where: { id: tool.id },
-        data: {
-          lastTrackedAt: new Date()
-        }
+    // Atomic Transaction Block
+    await prisma.$transaction(async (tx) => {
+      let tool = await tx.tool.findFirst({
+        where: { toolName: toolName || toolId }
       });
-    } else {
-      // Register a brand new tool
-      tool = await prisma.tool.create({
-        data: {
-          toolName: toolName || toolId,
-          category: 'Diagnostic Equipment',
-          lastKnownX: 0.0,
-          lastKnownY: 0.0,
-          lastKnownZ: 0.0,
-          lastTrackedAt: new Date()
-        }
-      });
-    }
 
-    // Generate an Audit Trail
-    await prisma.auditTrail.create({
-      data: {
-        targetTable: 'Tool',
-        targetRecordId: tool.id,
-        actionType: 'CHECKOUT',
-        changedById: technician.id,
-        newState: tool as any
+      if (!!tool) {
+        tool = await tx.tool.update({
+          where: { id: tool.id },
+          data: { lastTrackedAt: new Date() }
+        });
+      } else {
+        tool = await tx.tool.create({
+          data: {
+            toolName: toolName || toolId,
+            category: 'Diagnostic Equipment',
+            lastKnownX: 0.0,
+            lastKnownY: 0.0,
+            lastKnownZ: 0.0,
+            lastTrackedAt: new Date()
+          }
+        });
       }
+
+      // Atomic Transactionally Safe!
+      await tx.auditTrail.create({
+        data: {
+          targetTable: 'Tool',
+          targetRecordId: tool.id,
+          actionType: 'CHECKOUT',
+          changedById: technician.id,
+          newState: tool as any
+        }
+      });
     });
 
     return NextResponse.json({ success: true });
